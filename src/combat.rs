@@ -112,7 +112,8 @@ fn soigner(joueur: &mut Joueur, journal: &mut Vec<String>) -> Tour {
         journal.push("Plus de soins disponibles !".to_string());
         return Tour::Impossible;
     }
-    joueur.soigner(20, journal);
+    // Le montant vient de la stat du joueur (améliorable), plus d'un 20 écrit en dur.
+    joueur.soigner(joueur.soin, journal);
     joueur.soign_left -= 1;
     Tour::Joue
 }

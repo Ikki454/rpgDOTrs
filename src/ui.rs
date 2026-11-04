@@ -24,8 +24,8 @@ pub fn dessiner(frame: &mut Frame, game: &Game) {
     // Découpage de l'écran : `areas` renvoie un tableau qu'on déstructure directement.
     let [haut, arene, zone_equipement, bas] = Layout::vertical([
         Constraint::Length(3),
-        // 6 lignes de stats + 2 bordures.
-        Constraint::Length(8),
+        // 7 lignes de stats + 2 bordures.
+        Constraint::Length(9),
         Constraint::Length(6),
         Constraint::Min(8),
     ])
@@ -93,8 +93,9 @@ fn dessiner_joueur(frame: &mut Frame, zone: Rect, joueur: &Joueur) {
         ligne_degats,
         ligne_crit,
         ligne_armure,
+        ligne_soin,
         ligne_ressources,
-    ] = Layout::vertical([Constraint::Length(1); 6]).areas(interieur);
+    ] = Layout::vertical([Constraint::Length(1); 7]).areas(interieur);
 
     let nom = Line::from(vec![
         joueur.nom.as_str().bold(),
@@ -126,6 +127,13 @@ fn dessiner_joueur(frame: &mut Frame, zone: Rect, joueur: &Joueur) {
         joueur.soign_max
     );
     frame.render_widget(Line::from(ressources).dark_gray(), ligne_ressources);
+
+    let soin = Line::from(vec![
+        "Soin ".dark_gray(),
+        format!("+{}", joueur.soin).green().bold(),
+        " PV par sort".dark_gray(),
+    ]);
+    frame.render_widget(soin, ligne_soin);
 }
 
 // Les mêmes lignes de stats pour le héros et l'ennemi : une seule fonction, aucun copier-coller.

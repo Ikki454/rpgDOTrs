@@ -13,6 +13,8 @@ pub struct Joueur {
     pub tx_critique: f64,
     pub dgt_critique: i32,
     pub armure: i32,
+    // PV rendus par un sort de soin.
+    pub soin: i32,
 
     pub atk_left: i32,
     pub atk_max: i32,
@@ -51,7 +53,7 @@ impl Amelioration {
         match self {
             Amelioration::Degats => "Dégâts +5",
             Amelioration::Blocage => "Blocages +1",
-            Amelioration::Soin => "Soigner 20 PV",
+            Amelioration::Soin => "Soin +5 PV",
             Amelioration::VieMax => "PV max +20",
         }
     }
@@ -72,6 +74,7 @@ impl Joueur {
             dgt_critique: 20,
             // Pas d'armure de base : elle vient seulement des objets.
             armure: 0,
+            soin: 20,
 
             atk_left: 10,
             atk_max: 10,
@@ -163,8 +166,13 @@ impl Joueur {
             Amelioration::Degats => self.degats += 5,
             // `block_max` et pas `block_left`, sinon reset_skill efface le bonus.
             Amelioration::Blocage => self.block_max += 1,
-            Amelioration::Soin => self.soigner(20, journal),
-            Amelioration::VieMax => self.vie_max += 20,
+            // Améliore la stat de soin : chaque sort de soin rendra plus de PV.
+            Amelioration::Soin => self.soin += 5,
+            // Les PV gagnés s'ajoutent aussi aux PV actuels : 80/100 devient 100/120.
+            Amelioration::VieMax => {
+                self.vie_max += 20;
+                self.vie += 20;
+            }
         }
 
         self.niveau += 1;
@@ -200,5 +208,28 @@ impl Joueur {
             "Vous bloquez l'attaque de {} : 0 dégât subi !",
             attaquant.nom
         ));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn l_amelioration_pv_max_augmente_aussi_les_pv() {
+        let mut joueur = Joueur::creer_joueur("Test".to_string());
+        joueur.vie = 80;
+        joueur.ameliorer(Amelioration::VieMax, &mut Vec::new());
+        assert_eq!((joueur.vie, joueur.vie_max_total()), (100, 120));
+    }
+
+    #[test]
+    fn l_amelioration_soin_augmente_le_montant_soigne() {
+        let mut joueur = Joueur::creer_joueur("Test".to_string());
+        joueur.ameliorer(Amelioration::Soin, &mut Vec::new());
+        joueur.vie = 10;
+        let soin = joueur.soin;
+        joueur.soigner(soin, &mut Vec::new());
+        assert_eq!(joueur.vie, 35);
     }
 }
