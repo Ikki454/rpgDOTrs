@@ -22,14 +22,16 @@ pub fn dessiner(frame: &mut Frame, game: &Game) {
     }
 
     // Découpage de l'écran : `areas` renvoie un tableau qu'on déstructure directement.
-    let [haut, arene, bas] = Layout::vertical([
+    let [haut, arene, zone_equipement, bas] = Layout::vertical([
         Constraint::Length(3),
-        Constraint::Length(8),
+        Constraint::Length(6),
+        Constraint::Length(6),
         Constraint::Min(8),
     ])
     .areas(frame.area());
 
     dessiner_entete(frame, haut, game);
+    dessiner_equipement(frame, zone_equipement, &game.joueur);
 
     let [zone_joueur, zone_ennemi] =
         Layout::horizontal([Constraint::Percentage(50); 2]).areas(arene);
@@ -72,7 +74,7 @@ fn dessiner_entete(frame: &mut Frame, zone: Rect, game: &Game) {
     let texte = Line::from(vec![
         " Étage ".into(),
         Span::from(format!("{}/{}", etage, DERNIER_ETAGE)).bold(),
-        "   ↑↓ choisir · Entrée valider · 1-6 raccourci · Échap quitter".dark_gray(),
+        "   ↑↓ choisir · Entrée valider · chiffre = raccourci · Échap quitter".dark_gray(),
     ]);
     let bloc = Block::bordered().title(" Donjon de Rust ".bold());
     frame.render_widget(Paragraph::new(texte).block(bloc), zone);
@@ -84,14 +86,8 @@ fn dessiner_joueur(frame: &mut Frame, zone: Rect, joueur: &Joueur) {
     let interieur = bloc.inner(zone);
     frame.render_widget(bloc, zone);
 
-    let [
-        ligne_nom,
-        ligne_vie,
-        ligne_stats,
-        ligne_arme,
-        ligne_armure,
-        ligne_bijou,
-    ] = Layout::vertical([Constraint::Length(1); 6]).areas(interieur);
+    let [ligne_nom, ligne_vie, ligne_stats] =
+        Layout::vertical([Constraint::Length(1); 3]).areas(interieur);
 
     let nom = Line::from(vec![
         joueur.nom.as_str().bold(),
@@ -108,21 +104,33 @@ fn dessiner_joueur(frame: &mut Frame, zone: Rect, joueur: &Joueur) {
         joueur.dgt_critique_total()
     );
     frame.render_widget(Line::from(stats).dark_gray(), ligne_stats);
+}
 
-    // Tableau de paires (zone, emplacement) parcouru avec `for` : 3 lignes sans copier-coller.
-    for (ligne, emplacement) in [
-        (ligne_arme, Emplacement::Arme),
-        (ligne_armure, Emplacement::Armure),
-        (ligne_bijou, Emplacement::Bijou),
-    ] {
+// Les 8 emplacements, sur 2 colonnes de 4 lignes.
+fn dessiner_equipement(frame: &mut Frame, zone: Rect, joueur: &Joueur) {
+    let bloc = Block::bordered().title(" Équipement ");
+    let interieur = bloc.inner(zone);
+    frame.render_widget(bloc, zone);
+
+    let [gauche, droite] = Layout::horizontal([Constraint::Percentage(50); 2]).areas(interieur);
+    let lignes_gauche: [Rect; 4] = Layout::vertical([Constraint::Length(1); 4]).areas(gauche);
+    let lignes_droite: [Rect; 4] = Layout::vertical([Constraint::Length(1); 4]).areas(droite);
+
+    // `chain` met les deux colonnes bout à bout (8 zones),
+    // `zip` les associe une par une aux 8 emplacements.
+    for (ligne, emplacement) in lignes_gauche
+        .into_iter()
+        .chain(lignes_droite)
+        .zip(Emplacement::TOUS)
+    {
         let texte = ligne_item(emplacement.nom(), joueur.equipement(emplacement));
         frame.render_widget(texte, ligne);
     }
 }
 
-// "Arme   : Épée [Rare] Dégâts +7", ou "Arme   : -" si l'emplacement est vide.
+// "Arme    : Lame d'acier [Rare] Dégâts +7", ou "Arme    : -" si l'emplacement est vide.
 fn ligne_item(etiquette: &str, item: Option<&Item>) -> Line<'static> {
-    let debut = Span::from(format!("{:<7}: ", etiquette)).dark_gray();
+    let debut = Span::from(format!("{:<8}: ", etiquette)).dark_gray();
     match item {
         Some(item) => Line::from(vec![
             debut,
@@ -150,8 +158,8 @@ fn dessiner_butin(frame: &mut Frame, zone: Rect, item: &Item, joueur: &Joueur) {
     let interieur = bloc.inner(zone);
     frame.render_widget(bloc, zone);
 
-    let [ligne_nom, ligne_type, ligne_bonus, _, ligne_actuel] =
-        Layout::vertical([Constraint::Length(1); 5]).areas(interieur);
+    let [ligne_nom, ligne_type, ligne_bonus, ligne_actuel] =
+        Layout::vertical([Constraint::Length(1); 4]).areas(interieur);
 
     let nom = Line::from(vec![item.nom.bold(), " ".into(), texte_rarete(item.rarete)]);
     frame.render_widget(nom, ligne_nom);

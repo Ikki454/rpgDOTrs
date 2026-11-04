@@ -7,16 +7,46 @@ use rand::Rng;
 #[derive(Clone, Copy)]
 pub enum Emplacement {
     Arme,
-    Armure,
-    Bijou,
+    Casque,
+    Torse,
+    Mains,
+    Pantalon,
+    Bottes,
+    Ceinture,
+    Anneau,
 }
 
 impl Emplacement {
+    pub const NOMBRE: usize = 8;
+
+    // L'ordre de ce tableau = l'ordre d'affichage dans le panneau Équipement.
+    pub const TOUS: [Emplacement; Emplacement::NOMBRE] = [
+        Emplacement::Arme,
+        Emplacement::Casque,
+        Emplacement::Torse,
+        Emplacement::Mains,
+        Emplacement::Pantalon,
+        Emplacement::Bottes,
+        Emplacement::Ceinture,
+        Emplacement::Anneau,
+    ];
+
+    // Un enum sans données se convertit en nombre avec `as` : Arme = 0, Casque = 1, etc.
+    // Sert d'index dans le tableau d'équipement du joueur.
+    pub fn index(self) -> usize {
+        self as usize
+    }
+
     pub fn nom(&self) -> &'static str {
         match self {
             Emplacement::Arme => "Arme",
-            Emplacement::Armure => "Armure",
-            Emplacement::Bijou => "Bijou",
+            Emplacement::Casque => "Casque",
+            Emplacement::Torse => "Torse",
+            Emplacement::Mains => "Mains",
+            Emplacement::Pantalon => "Pantalon",
+            Emplacement::Bottes => "Bottes",
+            Emplacement::Ceinture => "Ceinture",
+            Emplacement::Anneau => "Anneau",
         }
     }
 }
@@ -112,88 +142,112 @@ pub struct Item {
 }
 
 impl Item {
-    // Crée un objet au hasard, plus puissant selon l'étage et la rareté.
+    // Tire un emplacement et une rareté au hasard, puis fabrique l'objet correspondant.
     pub fn aleatoire(etage: u32) -> Item {
-        let rarete = Rarete::aleatoire(etage);
+        let index = rand::thread_rng().gen_range(0..Emplacement::NOMBRE);
+        Item::creer(Emplacement::TOUS[index], Rarete::aleatoire(etage), etage)
+    }
+
+    pub fn creer(emplacement: Emplacement, rarete: Rarete, etage: u32) -> Item {
         let m = rarete.multiplicateur();
         let e = etage as f64;
-        // Petite fonction locale : calcule une stat entière à partir d'une base et d'un gain par étage.
+        // Dégâts et PV : grandissent avec l'étage ET la rareté.
         let stat = |base: f64, par_etage: f64| ((base + e * par_etage) * m).round() as i32;
+        // Critiques : dépendent SEULEMENT de la rareté, pas de l'étage.
+        let tx_crit = |base: f64| base * m;
+        let dgt_crit = |base: f64| (base * m).round() as i32;
 
         // `..Default::default()` : les champs non écrits prennent leur valeur par défaut (0).
-        let (nom, emplacement, bonus) = match rand::thread_rng().gen_range(0..7) {
-            0 => (
-                "Épée",
-                Emplacement::Arme,
-                Bonus {
-                    degats: stat(3.0, 0.5),
-                    ..Default::default()
-                },
-            ),
-            1 => (
-                "Hache",
-                Emplacement::Arme,
-                Bonus {
-                    degats: stat(2.0, 0.3),
-                    dgt_critique: stat(5.0, 0.5),
-                    ..Default::default()
-                },
-            ),
-            2 => (
-                "Dague",
-                Emplacement::Arme,
-                Bonus {
-                    degats: stat(1.0, 0.2),
-                    tx_critique: 0.05 * m,
-                    ..Default::default()
-                },
-            ),
-            3 => (
-                "Armure",
-                Emplacement::Armure,
-                Bonus {
-                    vie_max: stat(15.0, 2.0),
-                    ..Default::default()
-                },
-            ),
-            4 => (
-                "Bouclier",
-                Emplacement::Armure,
-                Bonus {
-                    vie_max: stat(8.0, 1.0),
-                    degats: stat(1.0, 0.2),
-                    ..Default::default()
-                },
-            ),
-            5 => (
-                "Anneau",
-                Emplacement::Bijou,
-                Bonus {
-                    tx_critique: 0.03 * m,
-                    dgt_critique: stat(3.0, 0.3),
-                    ..Default::default()
-                },
-            ),
-            _ => (
-                "Amulette",
-                Emplacement::Bijou,
-                Bonus {
-                    vie_max: stat(5.0, 1.0),
-                    degats: stat(1.0, 0.2),
-                    ..Default::default()
-                },
-            ),
+        let bonus = match emplacement {
+            Emplacement::Arme => Bonus {
+                degats: stat(3.0, 0.5),
+                dgt_critique: dgt_crit(4.0),
+                ..Default::default()
+            },
+            Emplacement::Casque => Bonus {
+                vie_max: stat(8.0, 1.0),
+                ..Default::default()
+            },
+            Emplacement::Torse => Bonus {
+                vie_max: stat(15.0, 2.0),
+                ..Default::default()
+            },
+            Emplacement::Mains => Bonus {
+                degats: stat(1.0, 0.2),
+                tx_critique: tx_crit(0.04),
+                ..Default::default()
+            },
+            Emplacement::Pantalon => Bonus {
+                vie_max: stat(10.0, 1.5),
+                ..Default::default()
+            },
+            Emplacement::Bottes => Bonus {
+                vie_max: stat(5.0, 0.8),
+                degats: stat(1.0, 0.2),
+                ..Default::default()
+            },
+            Emplacement::Ceinture => Bonus {
+                vie_max: stat(6.0, 1.0),
+                dgt_critique: dgt_crit(5.0),
+                ..Default::default()
+            },
+            Emplacement::Anneau => Bonus {
+                tx_critique: tx_crit(0.03),
+                dgt_critique: dgt_crit(8.0),
+                ..Default::default()
+            },
         };
 
         Item {
-            nom,
+            nom: Item::nom_pour(emplacement, rarete),
             emplacement,
             rarete,
             bonus,
         }
     }
 
-    // Exemple : "Épée [Rare] Dégâts +7".
+    // `match` sur un TUPLE : un nom pour chaque combinaison emplacement × rareté.
+    // Le compilateur vérifie qu'aucune des 24 combinaisons n'est oubliée.
+    fn nom_pour(emplacement: Emplacement, rarete: Rarete) -> &'static str {
+        use Emplacement::*;
+        use Rarete::*;
+
+        match (emplacement, rarete) {
+            (Arme, Commun) => "Épée rouillée",
+            (Arme, Rare) => "Lame d'acier",
+            (Arme, Epique) => "Lame runique",
+
+            (Casque, Commun) => "Casque en cuir",
+            (Casque, Rare) => "Heaume de fer",
+            (Casque, Epique) => "Couronne du roi déchu",
+
+            (Torse, Commun) => "Tunique",
+            (Torse, Rare) => "Cuirasse",
+            (Torse, Epique) => "Plastron du titan",
+
+            (Mains, Commun) => "Gants en cuir",
+            (Mains, Rare) => "Gantelets de fer",
+            (Mains, Epique) => "Poignes du voleur",
+
+            (Pantalon, Commun) => "Pantalon de toile",
+            (Pantalon, Rare) => "Jambières de mailles",
+            (Pantalon, Epique) => "Jambières draconiques",
+
+            (Bottes, Commun) => "Bottes usées",
+            (Bottes, Rare) => "Bottes renforcées",
+            (Bottes, Epique) => "Bottes des vents",
+
+            (Ceinture, Commun) => "Ceinture de corde",
+            (Ceinture, Rare) => "Ceinture cloutée",
+            (Ceinture, Epique) => "Ceinture du géant",
+
+            (Anneau, Commun) => "Anneau de cuivre",
+            (Anneau, Rare) => "Anneau d'argent",
+            (Anneau, Epique) => "Anneau des ombres",
+        }
+    }
+
+    // Exemple : "Lame d'acier [Rare] Dégâts +7, Dgt crit +6".
     pub fn description(&self) -> String {
         format!(
             "{} [{}] {}",
@@ -201,5 +255,25 @@ impl Item {
             self.rarete.nom(),
             self.bonus.description()
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn les_critiques_ne_dependent_pas_de_l_etage() {
+        let bas = Item::creer(Emplacement::Anneau, Rarete::Rare, 1);
+        let profond = Item::creer(Emplacement::Anneau, Rarete::Rare, 90);
+        assert_eq!(bas.bonus.tx_critique, profond.bonus.tx_critique);
+        assert_eq!(bas.bonus.dgt_critique, profond.bonus.dgt_critique);
+    }
+
+    #[test]
+    fn les_pv_dependent_de_l_etage() {
+        let bas = Item::creer(Emplacement::Torse, Rarete::Commun, 1);
+        let profond = Item::creer(Emplacement::Torse, Rarete::Commun, 90);
+        assert!(profond.bonus.vie_max > bas.bonus.vie_max);
     }
 }

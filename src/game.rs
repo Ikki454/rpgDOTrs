@@ -263,10 +263,8 @@ mod tests {
         }
         // Touche '1' = "Équiper" : l'objet quitte le coffre et va dans un emplacement du joueur.
         game.gerer_touche(KeyCode::Char('1'));
-        let equipe = [&game.joueur.arme, &game.joueur.armure, &game.joueur.bijou]
-            .iter()
-            .any(|place| place.is_some());
-        assert!(equipe);
+        // `Option::is_some` passé directement comme fonction, sans écrire de closure.
+        assert!(game.joueur.equipement.iter().any(Option::is_some));
         assert_eq!(game.etage, 6);
     }
 }

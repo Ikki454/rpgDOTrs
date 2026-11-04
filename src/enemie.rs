@@ -20,19 +20,18 @@ impl Enemie {
         let enemy_rang = EnemyRang::pick_rang(etage);
         let nom = enemy_type.nom().to_string();
 
-        let multiplicateur = match enemy_rang {
-            EnemyRang::Normal => 1.0,
-            EnemyRang::Elite => 1.5,
-            EnemyRang::Boss => 2.0,
+        // Un `match` qui renvoie un tuple : tout ce qui dépend du rang, au même endroit.
+        // Les critiques sont fixés par le rang : ils n'augmentent plus avec l'étage.
+        let (multiplicateur, tx_critique, dgt_critique) = match enemy_rang {
+            EnemyRang::Normal => (1.0, 0.10, 10),
+            EnemyRang::Elite => (1.5, 0.20, 20),
+            EnemyRang::Boss => (2.0, 0.30, 30),
         };
 
         // `as` convertit explicitement : Rust ne convertit jamais les nombres tout seul.
         let e = etage as i32;
         let vie = ((20 + e * 5) as f64 * multiplicateur) as i32;
         let degats = (2 + e) * multiplicateur as i32;
-        // Plafonné à 50 %, sinon l'ennemi fait un critique à chaque coup après l'étage 90.
-        let tx_critique = (0.1 + etage as f64 * 0.01).min(0.5);
-        let dgt_critique = 10 + e * 2;
 
         Enemie {
             enemy_type,

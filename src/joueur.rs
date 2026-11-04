@@ -21,10 +21,9 @@ pub struct Joueur {
     pub soign_left: i32,
     pub soign_max: i32,
 
+    // Un emplacement par case, rangé par `Emplacement::index()`.
     // `Option` : soit `Some(item)`, soit `None` (emplacement vide). Pas de `null` en Rust.
-    pub arme: Option<Item>,
-    pub armure: Option<Item>,
-    pub bijou: Option<Item>,
+    pub equipement: [Option<Item>; Emplacement::NOMBRE],
 }
 
 // `Clone, Copy` : une amélioration se copie comme un nombre, pas besoin de `&`.
@@ -34,19 +33,16 @@ pub enum Amelioration {
     Blocage,
     Soin,
     VieMax,
-    TauxCritique,
-    DegatsCritique,
 }
 
+// Les critiques ne s'améliorent plus ici : seulement grâce aux objets.
 impl Amelioration {
     // Constante associée : toutes les améliorations, dans l'ordre du menu.
-    pub const TOUTES: [Amelioration; 6] = [
+    pub const TOUTES: [Amelioration; 4] = [
         Amelioration::Degats,
         Amelioration::Blocage,
         Amelioration::Soin,
         Amelioration::VieMax,
-        Amelioration::TauxCritique,
-        Amelioration::DegatsCritique,
     ];
 
     pub fn description(&self) -> &'static str {
@@ -55,8 +51,6 @@ impl Amelioration {
             Amelioration::Blocage => "Blocages +1",
             Amelioration::Soin => "Soigner 20 PV",
             Amelioration::VieMax => "PV max +20",
-            Amelioration::TauxCritique => "Taux critique +5%",
-            Amelioration::DegatsCritique => "Dégâts critiques +10",
         }
     }
 }
@@ -84,9 +78,9 @@ impl Joueur {
             soign_left: 3,
             soign_max: 3,
 
-            arme: None,
-            armure: None,
-            bijou: None,
+            // `[None; 8]` ne compile pas : cette syntaxe copie la valeur, et `Option<Item>` n'est pas `Copy`.
+            // `[const { None }; 8]` crée chaque case à partir d'une constante, sans copie.
+            equipement: [const { None }; Emplacement::NOMBRE],
         }
     }
 
@@ -94,8 +88,8 @@ impl Joueur {
     // Les stats réelles = base + bonus de l'équipement, recalculées à chaque fois :
     // impossible d'oublier de retirer le bonus d'un objet qu'on enlève.
     fn bonus_equipement(&self) -> Bonus {
-        [&self.arme, &self.armure, &self.bijou]
-            .into_iter()
+        self.equipement
+            .iter()
             // `flatten` sur des `&Option<Item>` : ignore les `None`, garde les objets.
             .flatten()
             .fold(Bonus::default(), |total, item| total + item.bonus)
@@ -119,11 +113,7 @@ impl Joueur {
 
     // `as_ref` : transforme `&Option<Item>` en `Option<&Item>`, pour prêter l'objet sans le déplacer.
     pub fn equipement(&self, emplacement: Emplacement) -> Option<&Item> {
-        match emplacement {
-            Emplacement::Arme => self.arme.as_ref(),
-            Emplacement::Armure => self.armure.as_ref(),
-            Emplacement::Bijou => self.bijou.as_ref(),
-        }
+        self.equipement[emplacement.index()].as_ref()
     }
 
     // `item: Item` (sans `&`) : le joueur PREND possession de l'objet.
@@ -131,11 +121,7 @@ impl Joueur {
         journal.push(format!("Vous équipez : {}.", item.description()));
 
         // `&mut Option<Item>` : une référence vers le bon emplacement, qu'on va modifier.
-        let place = match item.emplacement {
-            Emplacement::Arme => &mut self.arme,
-            Emplacement::Armure => &mut self.armure,
-            Emplacement::Bijou => &mut self.bijou,
-        };
+        let place = &mut self.equipement[item.emplacement.index()];
         // `replace` met le nouvel objet et rend l'ancien (s'il y en avait un).
         if let Some(ancien) = place.replace(item) {
             journal.push(format!("{} est abandonné.", ancien.nom));
@@ -164,8 +150,6 @@ impl Joueur {
             Amelioration::Blocage => self.block_max += 1,
             Amelioration::Soin => self.soigner(20, journal),
             Amelioration::VieMax => self.vie_max += 20,
-            Amelioration::TauxCritique => self.tx_critique += 0.05,
-            Amelioration::DegatsCritique => self.dgt_critique += 10,
         }
 
         self.niveau += 1;
