@@ -54,37 +54,63 @@ impl Emplacement {
 #[derive(Clone, Copy)]
 pub enum Rarete {
     Commun,
+    PeuCommun,
     Rare,
     Epique,
+    Legendaire,
+    Mythique,
 }
 
 impl Rarete {
-    // Plus on descend, plus les objets épiques sont fréquents (plafonné à 35 %).
+    // Plus on descend, plus les raretés hautes sont fréquentes.
+    // Chances à l'étage 1 → étage 100 :
+    //   Mythique 0.2 % → 3 %, Légendaire 1 % → 8 %, Épique 4 % → 20 %,
+    //   Rare 12 % → 25 %, Peu commun 25 %, Commun : le reste (58 % → 19 %).
     fn aleatoire(etage: u32) -> Rarete {
-        let tirage: f64 = rand::random();
-        let chance_epique = (0.05 + etage as f64 * 0.003).min(0.35);
-        if tirage < chance_epique {
-            Rarete::Epique
-        } else if tirage < chance_epique + 0.30 {
-            Rarete::Rare
-        } else {
-            Rarete::Commun
+        // `t` va de 0.0 (étage 1) à 1.0 (étage 100).
+        let t = (etage.min(100) as f64) / 100.0;
+
+        // Un tableau de (rareté, chance), de la plus rare à la plus courante.
+        let chances = [
+            (Rarete::Mythique, 0.002 + 0.03 * t),
+            (Rarete::Legendaire, 0.01 + 0.07 * t),
+            (Rarete::Epique, 0.04 + 0.16 * t),
+            (Rarete::Rare, 0.12 + 0.13 * t),
+            (Rarete::PeuCommun, 0.25),
+        ];
+
+        // On tire un nombre entre 0 et 1, puis on retire chaque chance tour à tour :
+        // la première rareté qui fait passer le tirage sous sa chance est choisie.
+        let mut tirage: f64 = rand::random();
+        for (rarete, chance) in chances {
+            if tirage < chance {
+                return rarete;
+            }
+            tirage -= chance;
         }
+        // Aucune chance n'a été atteinte : objet commun.
+        Rarete::Commun
     }
 
     fn multiplicateur(&self) -> f64 {
         match self {
             Rarete::Commun => 1.0,
+            Rarete::PeuCommun => 1.2,
             Rarete::Rare => 1.5,
             Rarete::Epique => 2.5,
+            Rarete::Legendaire => 3.0,
+            Rarete::Mythique => 4.0,
         }
     }
 
     pub fn nom(&self) -> &'static str {
         match self {
             Rarete::Commun => "Commun",
+            Rarete::PeuCommun => "Peu Commun",
             Rarete::Rare => "Rare",
             Rarete::Epique => "Épique",
+            Rarete::Legendaire => "Légendaire",
+            Rarete::Mythique => "Mythique",
         }
     }
 }
@@ -218,43 +244,67 @@ impl Item {
     }
 
     // `match` sur un TUPLE : un nom pour chaque combinaison emplacement × rareté.
-    // Le compilateur vérifie qu'aucune des 24 combinaisons n'est oubliée.
+    // Le compilateur vérifie qu'aucune des 48 combinaisons (8 × 6) n'est oubliée.
     fn nom_pour(emplacement: Emplacement, rarete: Rarete) -> &'static str {
         use Emplacement::*;
         use Rarete::*;
 
         match (emplacement, rarete) {
             (Arme, Commun) => "Épée rouillée",
+            (Arme, PeuCommun) => "Épée en bois",
             (Arme, Rare) => "Lame d'acier",
             (Arme, Epique) => "Lame runique",
+            (Arme, Legendaire) => "Lame légendaire",
+            (Arme, Mythique) => "Lame mythique",
 
             (Casque, Commun) => "Casque en cuir",
+            (Casque, PeuCommun) => "Casque en bois",
             (Casque, Rare) => "Heaume de fer",
             (Casque, Epique) => "Couronne du roi déchu",
+            (Casque, Legendaire) => "Casque légendaire",
+            (Casque, Mythique) => "Casque mythique",
 
             (Torse, Commun) => "Tunique",
+            (Torse, PeuCommun) => "Tunique en cuir",
             (Torse, Rare) => "Cuirasse",
             (Torse, Epique) => "Plastron du titan",
+            (Torse, Legendaire) => "Torse légendaire",
+            (Torse, Mythique) => "Torse mythique",
 
             (Mains, Commun) => "Gants en cuir",
+            (Mains, PeuCommun) => "Gants en tissu",
             (Mains, Rare) => "Gantelets de fer",
             (Mains, Epique) => "Poignes du voleur",
+            (Mains, Legendaire) => "Gants légendaires",
+            (Mains, Mythique) => "Gants mythiques",
 
             (Pantalon, Commun) => "Pantalon de toile",
+            (Pantalon, PeuCommun) => "Pantalon en tissu",
             (Pantalon, Rare) => "Jambières de mailles",
             (Pantalon, Epique) => "Jambières draconiques",
+            (Pantalon, Legendaire) => "Jambières légendaires",
+            (Pantalon, Mythique) => "Jambières mythiques",
 
             (Bottes, Commun) => "Bottes usées",
+            (Bottes, PeuCommun) => "Bottes en tissu",
             (Bottes, Rare) => "Bottes renforcées",
             (Bottes, Epique) => "Bottes des vents",
+            (Bottes, Legendaire) => "Bottes légendaires",
+            (Bottes, Mythique) => "Bottes mythiques",
 
             (Ceinture, Commun) => "Ceinture de corde",
+            (Ceinture, PeuCommun) => "Ceinture en tissu",
             (Ceinture, Rare) => "Ceinture cloutée",
             (Ceinture, Epique) => "Ceinture du géant",
+            (Ceinture, Legendaire) => "Ceinture légendaire",
+            (Ceinture, Mythique) => "Ceinture mythique",
 
             (Anneau, Commun) => "Anneau de cuivre",
+            (Anneau, PeuCommun) => "Anneau de bronze",
             (Anneau, Rare) => "Anneau d'argent",
             (Anneau, Epique) => "Anneau des ombres",
+            (Anneau, Legendaire) => "Anneau légendaire",
+            (Anneau, Mythique) => "Anneau mythique",
         }
     }
 
@@ -286,5 +336,18 @@ mod tests {
         let bas = Item::creer(Emplacement::Torse, Rarete::Commun, 1);
         let profond = Item::creer(Emplacement::Torse, Rarete::Commun, 90);
         assert!(profond.bonus.vie_max > bas.bonus.vie_max);
+    }
+
+    // Test statistique : sur 20 000 tirages, l'écart dû au hasard est négligeable.
+    #[test]
+    fn les_raretes_hautes_sont_plus_frequentes_en_profondeur() {
+        // `filter` + `count` : combien de tirages donnent une rareté Mythique.
+        let mythiques = |etage| {
+            (0..20_000)
+                .filter(|_| matches!(Rarete::aleatoire(etage), Rarete::Mythique))
+                .count()
+        };
+        // Environ 40 attendus à l'étage 1, environ 640 à l'étage 100.
+        assert!(mythiques(100) > mythiques(1) * 3);
     }
 }

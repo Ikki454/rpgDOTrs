@@ -1,4 +1,4 @@
-use ratatui::{
+﻿use ratatui::{
     Frame,
     layout::{Constraint, Layout, Rect},
     style::{Color, Style, Stylize},
@@ -212,8 +212,12 @@ fn texte_rarete(rarete: Rarete) -> Span<'static> {
     let texte = format!("[{}]", rarete.nom());
     match rarete {
         Rarete::Commun => Span::from(texte),
+        Rarete::PeuCommun => texte.green(),
         Rarete::Rare => texte.blue().bold(),
         Rarete::Epique => texte.magenta().bold(),
+        Rarete::Legendaire => texte.yellow().bold(),
+        // Mythique : rouge et clignotant, pour qu'on ne le rate pas.
+        Rarete::Mythique => texte.red().bold().slow_blink(),
     }
 }
 
