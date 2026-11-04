@@ -1,3 +1,4 @@
+use crate::combat;
 use crate::joueur::Joueur;
 
 pub struct Enemie {
@@ -12,6 +13,7 @@ pub struct Enemie {
     pub degats: i32,
     pub tx_critique: f64,
     pub dgt_critique: i32,
+    pub armure: i32,
 }
 
 impl Enemie {
@@ -30,8 +32,13 @@ impl Enemie {
 
         // `as` convertit explicitement : Rust ne convertit jamais les nombres tout seul.
         let e = etage as i32;
+        // Les parenthèses comptent : `as` passe AVANT `*`.
+        // `(2 + e) * multiplicateur as i32` convertissait 1.5 en 1 avant de multiplier :
+        // un Elite tapait comme un Normal. Ici on multiplie en f64, PUIS on convertit.
         let vie = ((20 + e * 5) as f64 * multiplicateur) as i32;
-        let degats = (2 + e) * multiplicateur as i32;
+        let degats = ((2 + e) as f64 * multiplicateur) as i32;
+        // +1 armure par étage, multipliée par le rang. Boss de l'étage 100 : 200 (dégâts ×0.33).
+        let armure = (e as f64 * multiplicateur) as i32;
 
         Enemie {
             enemy_type,
@@ -46,6 +53,7 @@ impl Enemie {
             degats,
             tx_critique,
             dgt_critique,
+            armure,
         }
     }
 
@@ -56,13 +64,17 @@ impl Enemie {
             journal.push(format!("{} réalise un coup critique !", self.nom));
         }
 
-        cible.vie = (cible.vie - degats).max(0);
-        journal.push(format!("{} vous inflige {} dégâts.", self.nom, degats));
+        // C'est la cible qui applique SON armure : l'attaquant ne la connaît pas.
+        let subis = cible.subir_degats(degats);
+        journal.push(format!("{} vous inflige {} dégâts.", self.nom, subis));
     }
 
-    pub fn subir_degats(&mut self, degats: i32) {
+    // Renvoie les dégâts réellement subis (après armure), pour le journal.
+    pub fn subir_degats(&mut self, degats: i32) -> i32 {
+        let subis = combat::reduire_degats(degats, self.armure);
         // `max(0)` empêche la vie de passer en négatif.
-        self.vie = (self.vie - degats).max(0);
+        self.vie = (self.vie - subis).max(0);
+        subis
     }
 }
 

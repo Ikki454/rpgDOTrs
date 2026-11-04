@@ -1,3 +1,4 @@
+use crate::combat;
 use crate::enemie::Enemie;
 use crate::item::{Bonus, Emplacement, Item};
 
@@ -11,6 +12,7 @@ pub struct Joueur {
     pub degats: i32,
     pub tx_critique: f64,
     pub dgt_critique: i32,
+    pub armure: i32,
 
     pub atk_left: i32,
     pub atk_max: i32,
@@ -68,6 +70,8 @@ impl Joueur {
             degats: 10,
             tx_critique: 0.2,
             dgt_critique: 20,
+            // Pas d'armure de base : elle vient seulement des objets.
+            armure: 0,
 
             atk_left: 10,
             atk_max: 10,
@@ -109,6 +113,17 @@ impl Joueur {
 
     pub fn dgt_critique_total(&self) -> i32 {
         self.dgt_critique + self.bonus_equipement().dgt_critique
+    }
+
+    pub fn armure_total(&self) -> i32 {
+        self.armure + self.bonus_equipement().armure
+    }
+
+    // Même logique que pour l'ennemi : l'armure réduit les dégâts, puis on retire la vie.
+    pub fn subir_degats(&mut self, degats: i32) -> i32 {
+        let subis = combat::reduire_degats(degats, self.armure_total());
+        self.vie = (self.vie - subis).max(0);
+        subis
     }
 
     // `as_ref` : transforme `&Option<Item>` en `Option<&Item>`, pour prêter l'objet sans le déplacer.
@@ -174,8 +189,9 @@ impl Joueur {
             journal.push(format!("{} réalise un coup critique !", self.nom));
         }
 
-        cible.subir_degats(degats);
-        journal.push(format!("Vous infligez {} dégâts à {}.", degats, cible.nom));
+        // On affiche les dégâts APRÈS l'armure de l'ennemi.
+        let subis = cible.subir_degats(degats);
+        journal.push(format!("Vous infligez {} dégâts à {}.", subis, cible.nom));
     }
 
     // `&Enemie` : on lit seulement l'ennemi, pas besoin de `&mut`.

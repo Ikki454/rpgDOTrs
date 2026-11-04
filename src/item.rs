@@ -97,6 +97,7 @@ pub struct Bonus {
     pub vie_max: i32,
     pub tx_critique: f64,
     pub dgt_critique: i32,
+    pub armure: i32,
 }
 
 // Surcharge de l'opérateur `+` : on peut écrire `bonus_a + bonus_b`.
@@ -109,6 +110,7 @@ impl Add for Bonus {
             vie_max: self.vie_max + autre.vie_max,
             tx_critique: self.tx_critique + autre.tx_critique,
             dgt_critique: self.dgt_critique + autre.dgt_critique,
+            armure: self.armure + autre.armure,
         }
     }
 }
@@ -128,6 +130,9 @@ impl Bonus {
         }
         if self.dgt_critique != 0 {
             morceaux.push(format!("Dgt crit +{}", self.dgt_critique));
+        }
+        if self.armure != 0 {
+            morceaux.push(format!("Armure +{}", self.armure));
         }
         morceaux.join(", ")
     }
@@ -151,7 +156,7 @@ impl Item {
     pub fn creer(emplacement: Emplacement, rarete: Rarete, etage: u32) -> Item {
         let m = rarete.multiplicateur();
         let e = etage as f64;
-        // Dégâts et PV : grandissent avec l'étage ET la rareté.
+        // Dégâts, PV et armure : grandissent avec l'étage ET la rareté.
         let stat = |base: f64, par_etage: f64| ((base + e * par_etage) * m).round() as i32;
         // Critiques : dépendent SEULEMENT de la rareté, pas de l'étage.
         let tx_crit = |base: f64| base * m;
@@ -164,12 +169,16 @@ impl Item {
                 dgt_critique: dgt_crit(4.0),
                 ..Default::default()
             },
+            // Les pièces d'armure (casque, torse, pantalon, bottes) donnent de l'armure.
+            // Le torse en donne le plus, les bottes le moins.
             Emplacement::Casque => Bonus {
                 vie_max: stat(8.0, 1.0),
+                armure: stat(2.0, 0.3),
                 ..Default::default()
             },
             Emplacement::Torse => Bonus {
                 vie_max: stat(15.0, 2.0),
+                armure: stat(4.0, 0.6),
                 ..Default::default()
             },
             Emplacement::Mains => Bonus {
@@ -179,11 +188,13 @@ impl Item {
             },
             Emplacement::Pantalon => Bonus {
                 vie_max: stat(10.0, 1.5),
+                armure: stat(3.0, 0.4),
                 ..Default::default()
             },
             Emplacement::Bottes => Bonus {
                 vie_max: stat(5.0, 0.8),
                 degats: stat(1.0, 0.2),
+                armure: stat(1.0, 0.2),
                 ..Default::default()
             },
             Emplacement::Ceinture => Bonus {

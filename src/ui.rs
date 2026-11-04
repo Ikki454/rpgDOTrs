@@ -6,7 +6,7 @@ use ratatui::{
     widgets::{Block, Gauge, List, ListItem, ListState, Paragraph},
 };
 
-use crate::combat::Action;
+use crate::combat::{self, Action};
 use crate::enemie::{Enemie, EnemyRang};
 use crate::game::{CHOIX_BUTIN, DERNIER_ETAGE, Ecran, Game};
 use crate::item::{Emplacement, Item, Rarete};
@@ -24,7 +24,8 @@ pub fn dessiner(frame: &mut Frame, game: &Game) {
     // Découpage de l'écran : `areas` renvoie un tableau qu'on déstructure directement.
     let [haut, arene, zone_equipement, bas] = Layout::vertical([
         Constraint::Length(3),
-        Constraint::Length(6),
+        // 6 lignes de stats + 2 bordures.
+        Constraint::Length(8),
         Constraint::Length(6),
         Constraint::Min(8),
     ])
@@ -86,8 +87,14 @@ fn dessiner_joueur(frame: &mut Frame, zone: Rect, joueur: &Joueur) {
     let interieur = bloc.inner(zone);
     frame.render_widget(bloc, zone);
 
-    let [ligne_nom, ligne_vie, ligne_stats] =
-        Layout::vertical([Constraint::Length(1); 3]).areas(interieur);
+    let [
+        ligne_nom,
+        ligne_vie,
+        ligne_degats,
+        ligne_crit,
+        ligne_armure,
+        ligne_ressources,
+    ] = Layout::vertical([Constraint::Length(1); 6]).areas(interieur);
 
     let nom = Line::from(vec![
         joueur.nom.as_str().bold(),
@@ -97,13 +104,62 @@ fn dessiner_joueur(frame: &mut Frame, zone: Rect, joueur: &Joueur) {
     frame.render_widget(jauge_vie(joueur.vie, joueur.vie_max_total()), ligne_vie);
 
     // Stats totales : base + équipement.
-    let stats = format!(
-        "Dégâts {}  Crit {:.0}% (+{})",
+    // Le tableau renvoyé se déstructure comme un tuple : une ligne par variable.
+    let [degats, crit, armure] = lignes_stats(
         joueur.degats_total(),
-        joueur.tx_critique_total() * 100.0,
-        joueur.dgt_critique_total()
+        joueur.tx_critique_total(),
+        joueur.dgt_critique_total(),
+        joueur.armure_total(),
     );
-    frame.render_widget(Line::from(stats).dark_gray(), ligne_stats);
+    frame.render_widget(degats, ligne_degats);
+    frame.render_widget(crit, ligne_crit);
+    frame.render_widget(armure, ligne_armure);
+
+    // Ce qu'il reste au joueur pour ce combat.
+    let ressources = format!(
+        "Attaques {}/{}  Blocs {}/{}  Soins {}/{}",
+        joueur.atk_left,
+        joueur.atk_max,
+        joueur.block_left,
+        joueur.block_max,
+        joueur.soign_left,
+        joueur.soign_max
+    );
+    frame.render_widget(Line::from(ressources).dark_gray(), ligne_ressources);
+}
+
+// Les mêmes lignes de stats pour le héros et l'ennemi : une seule fonction, aucun copier-coller.
+// Ligne 1 : dégâts normaux et d'un coup critique. Ligne 2 : taux et bonus critique.
+// Ligne 3 : armure et multiplicateur des dégâts subis.
+fn lignes_stats(
+    degats: i32,
+    tx_critique: f64,
+    dgt_critique: i32,
+    armure: i32,
+) -> [Line<'static>; 3] {
+    [
+        Line::from(vec![
+            "Dégâts ".dark_gray(),
+            degats.to_string().bold(),
+            format!("  (critique : {})", degats + dgt_critique).dark_gray(),
+        ]),
+        Line::from(format!(
+            "Taux crit {:.0}%  Dégâts crit +{}",
+            tx_critique * 100.0,
+            dgt_critique
+        ))
+        .dark_gray(),
+        Line::from(vec![
+            "Armure ".dark_gray(),
+            armure.to_string().bold(),
+            // L'UI réutilise la formule de combat.rs : un seul endroit à changer si on l'ajuste.
+            format!(
+                "  (dégâts subis ×{:.2})",
+                combat::multiplicateur_armure(armure)
+            )
+            .dark_gray(),
+        ]),
+    ]
 }
 
 // Les 8 emplacements, sur 2 colonnes de 4 lignes.
@@ -179,8 +235,8 @@ fn dessiner_ennemi(frame: &mut Frame, zone: Rect, ennemi: &Enemie) {
     let interieur = bloc.inner(zone);
     frame.render_widget(bloc, zone);
 
-    let [ligne_nom, ligne_vie, ligne_stats] =
-        Layout::vertical([Constraint::Length(1); 3]).areas(interieur);
+    let [ligne_nom, ligne_vie, ligne_degats, ligne_crit, ligne_armure] =
+        Layout::vertical([Constraint::Length(1); 5]).areas(interieur);
 
     // Le texte du rang vient d'enemie.rs, mais la couleur est un choix d'affichage : elle reste ici.
     let rang = ennemi.enemy_rang.nom();
@@ -199,13 +255,15 @@ fn dessiner_ennemi(frame: &mut Frame, zone: Rect, ennemi: &Enemie) {
     frame.render_widget(nom, ligne_nom);
     frame.render_widget(jauge_vie(ennemi.vie, ennemi.vie_max), ligne_vie);
 
-    let stats = format!(
-        "Dégâts {}  Crit {:.0}% (+{})",
+    let [degats, crit, armure] = lignes_stats(
         ennemi.degats,
-        ennemi.tx_critique * 100.0,
-        ennemi.dgt_critique
+        ennemi.tx_critique,
+        ennemi.dgt_critique,
+        ennemi.armure,
     );
-    frame.render_widget(Line::from(stats).dark_gray(), ligne_stats);
+    frame.render_widget(degats, ligne_degats);
+    frame.render_widget(crit, ligne_crit);
+    frame.render_widget(armure, ligne_armure);
 }
 
 // Barre de vie dont la couleur change selon les PV restants.
