@@ -1,0 +1,143 @@
+use crate::joueur::Joueur;
+
+pub struct Enemie {
+    pub enemy_type: EnemyType,
+    pub enemy_rang: EnemyRang,
+
+    pub nom: String,
+    pub niveau: u32,
+
+    pub vie: i32,
+    pub vie_max: i32,
+    pub degats: i32,
+    pub tx_critique: f64,
+    pub dgt_critique: i32,
+}
+
+impl Enemie {
+    pub fn creer_ennemi(etage: u32) -> Enemie {
+        let enemy_type = EnemyType::from_floor(etage);
+        let enemy_rang = EnemyRang::pick_rang(etage);
+        let nom = enemy_type.nom().to_string();
+
+        let multiplicateur = match enemy_rang {
+            EnemyRang::Normal => 1.0,
+            EnemyRang::Elite => 1.5,
+            EnemyRang::Boss => 2.0,
+        };
+
+        // `as` convertit explicitement : Rust ne convertit jamais les nombres tout seul.
+        let e = etage as i32;
+        let vie = ((20 + e * 5) as f64 * multiplicateur) as i32;
+        let degats = (2 + e) * multiplicateur as i32;
+        // Plafonné à 50 %, sinon l'ennemi fait un critique à chaque coup après l'étage 90.
+        let tx_critique = (0.1 + etage as f64 * 0.01).min(0.5);
+        let dgt_critique = 10 + e * 2;
+
+        Enemie {
+            enemy_type,
+            enemy_rang,
+
+            nom,
+            niveau: etage,
+
+            vie,
+            // `vie_max` sert à la barre de vie de l'UI.
+            vie_max: vie,
+            degats,
+            tx_critique,
+            dgt_critique,
+        }
+    }
+
+    pub fn attaquer(&self, cible: &mut Joueur, journal: &mut Vec<String>) {
+        let mut degats = self.degats;
+        if rand::random::<f64>() <= self.tx_critique {
+            degats += self.dgt_critique;
+            journal.push(format!("{} réalise un coup critique !", self.nom));
+        }
+
+        cible.vie = (cible.vie - degats).max(0);
+        journal.push(format!("{} vous inflige {} dégâts.", self.nom, degats));
+    }
+
+    pub fn subir_degats(&mut self, degats: i32) {
+        // `max(0)` empêche la vie de passer en négatif.
+        self.vie = (self.vie - degats).max(0);
+    }
+}
+
+pub enum EnemyType {
+    Goblin,
+    Minotaure,
+    Troll,
+    Loup,
+    Oursain,
+    Pirhana,
+    Esprit,
+    Golem,
+    Gargouille,
+    ChauveSouris,
+}
+impl EnemyType {
+    // 10 types sur 100 étages : un nouveau type tous les 10 étages.
+    fn from_floor(etage: u32) -> Self {
+        // `saturating_sub` évite un panic si etage vaut 0 (0 - 1 sur un u32 = débordement).
+        match etage.saturating_sub(1) / 10 {
+            0 => Self::Goblin,
+            1 => Self::Minotaure,
+            2 => Self::Troll,
+            3 => Self::Loup,
+            4 => Self::Oursain,
+            5 => Self::Pirhana,
+            6 => Self::Esprit,
+            7 => Self::Golem,
+            8 => Self::Gargouille,
+            _ => Self::ChauveSouris,
+        }
+    }
+
+    // `&'static str` : le texte est écrit dans le programme, il vit pendant toute l'exécution.
+    fn nom(&self) -> &'static str {
+        match self {
+            Self::Goblin => "Goblin",
+            Self::Minotaure => "Minotaure",
+            Self::Troll => "Troll",
+            Self::Loup => "Loup",
+            Self::Oursain => "Oursain",
+            Self::Pirhana => "Pirhana",
+            Self::Esprit => "Esprit",
+            Self::Golem => "Golem",
+            Self::Gargouille => "Gargouille",
+            Self::ChauveSouris => "Chauve-Souris",
+        }
+    }
+}
+
+pub enum EnemyRang {
+    Normal,
+    Elite,
+    Boss,
+}
+impl EnemyRang {
+    fn pick_rang(etage: u32) -> Self {
+        if etage.is_multiple_of(10) {
+            return Self::Boss;
+        }
+
+        let random_value: f64 = rand::random();
+        if random_value < 0.9 {
+            Self::Normal
+        } else {
+            Self::Elite
+        }
+    }
+
+    pub fn nom(&self) -> &'static str {
+        match self {
+            Self::Normal => "Normal",
+            Self::Elite => "Elite",
+            Self::Boss => "Boss",
+        }
+    }
+}
