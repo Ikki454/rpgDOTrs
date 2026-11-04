@@ -1,4 +1,4 @@
-﻿use ratatui::{
+use ratatui::{
     Frame,
     layout::{Constraint, Layout, Rect},
     style::{Color, Style, Stylize},
@@ -247,8 +247,14 @@ fn dessiner_ennemi(frame: &mut Frame, zone: Rect, ennemi: &Enemie) {
     let interieur = bloc.inner(zone);
     frame.render_widget(bloc, zone);
 
-    let [ligne_nom, ligne_vie, ligne_degats, ligne_crit, ligne_armure] =
-        Layout::vertical([Constraint::Length(1); 5]).areas(interieur);
+    let [
+        ligne_nom,
+        ligne_vie,
+        ligne_degats,
+        ligne_crit,
+        ligne_armure,
+        ligne_intention,
+    ] = Layout::vertical([Constraint::Length(1); 6]).areas(interieur);
 
     // Le texte du rang vient d'enemie.rs, mais la couleur est un choix d'affichage : elle reste ici.
     let rang = ennemi.enemy_rang.nom();
@@ -276,6 +282,13 @@ fn dessiner_ennemi(frame: &mut Frame, zone: Rect, ennemi: &Enemie) {
     frame.render_widget(degats, ligne_degats);
     frame.render_widget(crit, ligne_crit);
     frame.render_widget(armure, ligne_armure);
+
+    // L'intention de l'ennemi pour ce tour : le conseil de bloquer reste visible à l'écran,
+    // même quand le message du journal est remonté.
+    if ennemi.prochain_critique {
+        let alerte = Line::from("⚠ Attaque puissante : bloquez !").red().bold();
+        frame.render_widget(alerte, ligne_intention);
+    }
 }
 
 // Barre de vie dont la couleur change selon les PV restants.

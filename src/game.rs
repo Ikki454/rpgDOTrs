@@ -143,13 +143,16 @@ impl Game {
     }
 
     fn lancer_combat(&mut self) {
-        let ennemi = Enemie::creer_ennemi(self.etage);
+        // `mut` : `preparer_attaque` modifie l'ennemi avant qu'on le range dans l'écran.
+        let mut ennemi = Enemie::creer_ennemi(self.etage);
         if self.etage.is_multiple_of(10) {
             self.journal
                 .push(format!("Un BOSS apparaît : {} !", ennemi.nom));
         } else {
             self.journal.push(format!("Un {} apparaît !", ennemi.nom));
         }
+        // Dès le premier tour, le joueur sait si l'ennemi prépare une attaque puissante.
+        ennemi.preparer_attaque(&mut self.journal);
 
         // Chaque combat commence avec toutes les attaques, blocages et soins.
         self.joueur.reset_skill();

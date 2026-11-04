@@ -14,6 +14,9 @@ pub struct Enemie {
     pub tx_critique: f64,
     pub dgt_critique: i32,
     pub armure: i32,
+
+    // `true` si la PROCHAINE attaque sera un coup critique (annoncé à l'avance).
+    pub prochain_critique: bool,
 }
 
 impl Enemie {
@@ -54,14 +57,26 @@ impl Enemie {
             tx_critique,
             dgt_critique,
             armure,
+            // Décidé par `preparer_attaque`, appelée par le jeu quand le combat commence.
+            prochain_critique: false,
+        }
+    }
+
+    // Le critique est tiré UN TOUR À L'AVANCE et annoncé au joueur, pour qu'il puisse bloquer.
+    // Appelée au début du combat et au début de chaque nouveau tour.
+    pub fn preparer_attaque(&mut self, journal: &mut Vec<String>) {
+        self.prochain_critique = rand::random::<f64>() <= self.tx_critique;
+        if self.prochain_critique {
+            journal.push(format!("{} prépare une attaque puissante !", self.nom));
         }
     }
 
     pub fn attaquer(&self, cible: &mut Joueur, journal: &mut Vec<String>) {
         let mut degats = self.degats;
-        if rand::random::<f64>() <= self.tx_critique {
+        // Plus de tirage ici : on utilise ce qui a été annoncé au tour précédent.
+        if self.prochain_critique {
             degats += self.dgt_critique;
-            journal.push(format!("{} réalise un coup critique !", self.nom));
+            journal.push(format!("{} déchaîne son attaque puissante !", self.nom));
         }
 
         // C'est la cible qui applique SON armure : l'attaquant ne la connaît pas.

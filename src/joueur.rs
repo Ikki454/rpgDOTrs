@@ -204,9 +204,15 @@ impl Joueur {
 
     // `&Enemie` : on lit seulement l'ennemi, pas besoin de `&mut`.
     pub fn bloquer(&self, attaquant: &Enemie, journal: &mut Vec<String>) {
+        // `if` est une expression : il renvoie directement le bon texte.
+        let attaque = if attaquant.prochain_critique {
+            "l'attaque puissante"
+        } else {
+            "l'attaque"
+        };
         journal.push(format!(
-            "Vous bloquez l'attaque de {} : 0 dégât subi !",
-            attaquant.nom
+            "Vous bloquez {} de {} : 0 dégât subi !",
+            attaque, attaquant.nom
         ));
     }
 }

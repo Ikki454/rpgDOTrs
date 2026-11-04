@@ -55,22 +55,27 @@ pub fn jouer_tour(
     };
 
     match tour {
-        Tour::Impossible | Tour::Bloque => return Issue::EnCours,
-        Tour::Joue => {}
+        // Rien ne s'est passé : même tour, l'attaque annoncée reste la même.
+        Tour::Impossible => return Issue::EnCours,
+        // L'attaque de l'ennemi (puissante ou non) est arrêtée par le blocage.
+        Tour::Bloque => {}
+        Tour::Joue => {
+            if ennemie.vie < 1 {
+                journal.push(format!("Vous avez vaincu {} !", ennemie.nom));
+                return Issue::Victoire;
+            }
+
+            ennemie.attaquer(joueur, journal);
+
+            if joueur.vie < 1 {
+                journal.push(format!("Vous avez été vaincu par {} !", ennemie.nom));
+                return Issue::Defaite;
+            }
+        }
     }
 
-    if ennemie.vie < 1 {
-        journal.push(format!("Vous avez vaincu {} !", ennemie.nom));
-        return Issue::Victoire;
-    }
-
-    ennemie.attaquer(joueur, journal);
-
-    if joueur.vie < 1 {
-        journal.push(format!("Vous avez été vaincu par {} !", ennemie.nom));
-        return Issue::Defaite;
-    }
-
+    // Début du tour suivant : l'ennemi choisit (et annonce) sa prochaine attaque.
+    ennemie.preparer_attaque(journal);
     Issue::EnCours
 }
 
@@ -129,5 +134,28 @@ mod tests {
         assert_eq!(reduire_degats(100, 300), 25);
         // Jamais moins de 1 dégât, même avec une armure énorme.
         assert_eq!(reduire_degats(1, 10_000), 1);
+    }
+
+    #[test]
+    fn l_attaque_puissante_annoncee_frappe_en_critique() {
+        let mut joueur = Joueur::creer_joueur("Test".to_string());
+        let mut ennemi = Enemie::creer_ennemi(1);
+        // On force l'annonce au lieu de compter sur le hasard.
+        ennemi.prochain_critique = true;
+
+        // Soigner : l'ennemi riposte avec l'attaque annoncée.
+        jouer_tour(&mut joueur, &mut ennemi, Action::Soigner, &mut Vec::new());
+        let attendu = reduire_degats(ennemi.degats + ennemi.dgt_critique, 0);
+        assert_eq!(joueur.vie, 100 - attendu);
+    }
+
+    #[test]
+    fn bloquer_arrete_l_attaque_puissante() {
+        let mut joueur = Joueur::creer_joueur("Test".to_string());
+        let mut ennemi = Enemie::creer_ennemi(1);
+        ennemi.prochain_critique = true;
+
+        jouer_tour(&mut joueur, &mut ennemi, Action::Bloquer, &mut Vec::new());
+        assert_eq!(joueur.vie, 100);
     }
 }
