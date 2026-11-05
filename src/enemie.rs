@@ -19,6 +19,17 @@ pub struct Enemie {
     pub prochain_critique: bool,
 }
 
+// Réglages de difficulté : stat = (base + étage × par_étage) × multiplicateur du rang.
+// Ennemi Normal, avant → maintenant :
+//   étage 10 : 70 PV / 12 dégâts / 10 armure  →  50 PV /  9 dégâts /  5 armure
+//   étage 50 : 270 PV / 52 dégâts / 50 armure → 170 PV / 33 dégâts / 25 armure
+//   étage 100: 520 PV / 102 dégâts / 100 armure → 320 PV / 63 dégâts / 50 armure
+const VIE_BASE: f64 = 20.0;
+const VIE_PAR_ETAGE: f64 = 3.0; // avant : 5
+const DEGATS_BASE: f64 = 3.0; // avant : 2
+const DEGATS_PAR_ETAGE: f64 = 0.6; // avant : 1
+const ARMURE_PAR_ETAGE: f64 = 0.5; // avant : 1
+
 impl Enemie {
     pub fn creer_ennemi(etage: u32) -> Enemie {
         let enemy_type = EnemyType::from_floor(etage);
@@ -34,14 +45,12 @@ impl Enemie {
         };
 
         // `as` convertit explicitement : Rust ne convertit jamais les nombres tout seul.
-        let e = etage as i32;
-        // Les parenthèses comptent : `as` passe AVANT `*`.
-        // `(2 + e) * multiplicateur as i32` convertissait 1.5 en 1 avant de multiplier :
-        // un Elite tapait comme un Normal. Ici on multiplie en f64, PUIS on convertit.
-        let vie = ((20 + e * 5) as f64 * multiplicateur) as i32;
-        let degats = ((2 + e) as f64 * multiplicateur) as i32;
-        // +1 armure par étage, multipliée par le rang. Boss de l'étage 100 : 200 (dégâts ×0.33).
-        let armure = (e as f64 * multiplicateur) as i32;
+        // On calcule en f64 PUIS on convertit : `as` passe avant `*`,
+        // `x * multiplicateur as i32` tronquerait 1.5 en 1.
+        let e = etage as f64;
+        let vie = ((VIE_BASE + e * VIE_PAR_ETAGE) * multiplicateur) as i32;
+        let degats = ((DEGATS_BASE + e * DEGATS_PAR_ETAGE) * multiplicateur) as i32;
+        let armure = (e * ARMURE_PAR_ETAGE * multiplicateur) as i32;
 
         Enemie {
             enemy_type,
