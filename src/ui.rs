@@ -1,4 +1,4 @@
-﻿use ratatui::{
+use ratatui::{
     Frame,
     layout::{Constraint, Layout, Rect},
     style::{Color, Style, Stylize},
@@ -11,6 +11,10 @@ use crate::enemie::{Enemie, EnemyRang};
 use crate::game::{CHOIX_BUTIN, DERNIER_ETAGE, Ecran, Game};
 use crate::item::{Emplacement, Item, Rarete};
 use crate::joueur::{Amelioration, Joueur};
+
+// `true`  : "1. Combat : Une ombre bouge au fond de la salle"
+// `false` : "1. Une ombre bouge au fond de la salle" (le joueur doit deviner ce qui l'attend)
+pub const AFFICHER_TYPE_CHEMIN: bool = true;
 
 // L'UI ne modifie jamais le jeu : elle reçoit `&Game` (lecture seule) et dessine.
 // ratatui redessine tout l'écran à chaque appel ("immediate mode").
@@ -51,8 +55,14 @@ pub fn dessiner(frame: &mut Frame, game: &Game) {
         ),
     }
 
+    // Les phrases des chemins sont longues : le menu s'élargit sur cet écran.
+    let largeur_menu = if matches!(game.ecran, Ecran::Chemins { .. }) {
+        60
+    } else {
+        34
+    };
     let [zone_menu, zone_journal] =
-        Layout::horizontal([Constraint::Length(34), Constraint::Min(20)]).areas(bas);
+        Layout::horizontal([Constraint::Length(largeur_menu), Constraint::Min(20)]).areas(bas);
     dessiner_menu(frame, zone_menu, game);
     dessiner_journal(frame, zone_journal, &game.journal);
 }
@@ -311,6 +321,23 @@ fn jauge_vie(vie: i32, vie_max: i32) -> Gauge<'static> {
 fn dessiner_menu(frame: &mut Frame, zone: Rect, game: &Game) {
     // Un `match` qui renvoie un tuple : titre, lignes du menu et ligne sélectionnée.
     let (titre, lignes, selection): (&str, Vec<ListItem>, usize) = match &game.ecran {
+        Ecran::Chemins { chemins, selection } => (
+            " Chemins ",
+            chemins
+                .iter()
+                .enumerate()
+                .map(|(i, propose)| {
+                    // `if` est une expression : chaque branche renvoie une `String`.
+                    let texte = if AFFICHER_TYPE_CHEMIN {
+                        format!("{} : {}", propose.chemin.nom(), propose.phrase)
+                    } else {
+                        propose.phrase.to_string()
+                    };
+                    ListItem::new(format!("{}. {}", i + 1, texte))
+                })
+                .collect(),
+            *selection,
+        ),
         Ecran::Combat { selection, .. } => (
             " Actions ",
             Action::TOUTES
@@ -424,6 +451,7 @@ fn centrer(zone: Rect, largeur: u16, hauteur: u16) -> Rect {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::game::{Chemin, CheminPropose};
     use ratatui::crossterm::event::KeyCode;
     use ratatui::{Terminal, backend::TestBackend};
 
@@ -435,8 +463,14 @@ mod tests {
             game.gerer_touche(KeyCode::Char(c));
         }
         game.gerer_touche(KeyCode::Enter);
+        // Les chemins sont aléatoires : on force un chemin de combat.
+        game.ecran = Ecran::Chemins {
+            chemins: vec![CheminPropose::new(Chemin::Combat)],
+            selection: 0,
+        };
+        game.gerer_touche(KeyCode::Enter);
 
-        let mut terminal = Terminal::new(TestBackend::new(90, 22)).unwrap();
+        let mut terminal = Terminal::new(TestBackend::new(90, 24)).unwrap();
         terminal.draw(|frame| dessiner(frame, &game)).unwrap();
 
         let ecran = terminal.backend().to_string();
@@ -451,10 +485,11 @@ mod tests {
         let mut game = Game::default();
         game.gerer_touche(KeyCode::Char('F'));
         game.gerer_touche(KeyCode::Enter);
-        // Fuir 4 fois mène à l'étage 5, la salle des coffres.
-        for _ in 0..4 {
-            game.gerer_touche(KeyCode::Char('4'));
-        }
+        game.ecran = Ecran::Chemins {
+            chemins: vec![CheminPropose::new(Chemin::Coffre)],
+            selection: 0,
+        };
+        game.gerer_touche(KeyCode::Enter);
 
         let mut terminal = Terminal::new(TestBackend::new(100, 24)).unwrap();
         terminal.draw(|frame| dessiner(frame, &game)).unwrap();
@@ -464,5 +499,30 @@ mod tests {
         assert!(ecran.contains("Coffre"));
         assert!(ecran.contains("Équiper"));
         assert!(ecran.contains("Actuel"));
+    }
+
+    #[test]
+    fn dessine_les_chemins() {
+        let mut game = Game::default();
+        game.gerer_touche(KeyCode::Char('F'));
+        game.gerer_touche(KeyCode::Enter);
+        game.ecran = Ecran::Chemins {
+            chemins: vec![
+                CheminPropose::new(Chemin::Combat),
+                CheminPropose::new(Chemin::Evenement),
+                CheminPropose::new(Chemin::Coffre),
+            ],
+            selection: 0,
+        };
+
+        let mut terminal = Terminal::new(TestBackend::new(100, 24)).unwrap();
+        terminal.draw(|frame| dessiner(frame, &game)).unwrap();
+
+        let ecran = terminal.backend().to_string();
+        println!("{ecran}");
+        assert!(ecran.contains("Chemins"));
+        // Le test suit le réglage : il passe que le type soit affiché ou non.
+        assert_eq!(ecran.contains("1. Combat :"), AFFICHER_TYPE_CHEMIN);
+        assert_eq!(ecran.contains("3. Coffre :"), AFFICHER_TYPE_CHEMIN);
     }
 }
