@@ -92,15 +92,22 @@ impl Rarete {
         Rarete::Commun
     }
 
-    fn multiplicateur(&self) -> f64 {
-        match self {
-            Rarete::Commun => 1.0,
-            Rarete::PeuCommun => 1.2,
-            Rarete::Rare => 1.5,
-            Rarete::Epique => 2.5,
-            Rarete::Legendaire => 3.0,
-            Rarete::Mythique => 4.0,
-        }
+    // Toutes les raretés, de la plus faible à la plus forte.
+    // `cfg(test)` : seuls les tests s'en servent pour l'instant, le jeu n'en a pas besoin.
+    #[cfg(test)]
+    const TOUTES: [Rarete; 6] = [
+        Rarete::Commun,
+        Rarete::PeuCommun,
+        Rarete::Rare,
+        Rarete::Epique,
+        Rarete::Legendaire,
+        Rarete::Mythique,
+    ];
+
+    // Palier de la rareté : Commun = 1, Peu commun = 2, ... Mythique = 6.
+    // `self as usize` donne la position dans l'enum (Commun = 0), comme pour `Emplacement::index`.
+    fn palier(self) -> f64 {
+        (self as usize + 1) as f64
     }
 
     pub fn nom(&self) -> &'static str {
@@ -180,51 +187,60 @@ impl Item {
     }
 
     pub fn creer(emplacement: Emplacement, rarete: Rarete, etage: u32) -> Item {
-        let m = rarete.multiplicateur();
-        let e = etage as f64;
-        // Dégâts, PV et armure : grandissent avec l'étage ET la rareté.
-        let stat = |base: f64, par_etage: f64| ((base + e * par_etage) * m).round() as i32;
+        let palier = rarete.palier();
+        // `t` va de 0.0 (étage 1) à 1.0 (étage 100).
+        let t = etage.min(100) as f64 / 100.0;
+
+        // Dégâts, PV et armure : `base × (palier + t)`.
+        // Chaque rareté a sa propre tranche, et l'étage fait avancer DANS la tranche :
+        //   Commun    : base × 1.0 (étage 1) → base × 2.0 (étage 100)
+        //   Peu commun: base × 2.0             → base × 3.0
+        //   ...
+        //   Mythique  : base × 6.0             → base × 7.0
+        // Un Commun de l'étage 100 ne dépasse donc jamais un Peu commun de l'étage 1.
+        let stat = |base: f64| (base * (palier + t)).round() as i32;
         // Critiques : dépendent SEULEMENT de la rareté, pas de l'étage.
-        let tx_crit = |base: f64| base * m;
-        let dgt_crit = |base: f64| (base * m).round() as i32;
+        let tx_crit = |base: f64| base * palier;
+        let dgt_crit = |base: f64| (base * palier).round() as i32;
 
         // `..Default::default()` : les champs non écrits prennent leur valeur par défaut (0).
         let bonus = match emplacement {
+            // `base` = valeur d'un objet Commun à l'étage 1.
             Emplacement::Arme => Bonus {
-                degats: stat(3.0, 0.5),
+                degats: stat(4.0),
                 dgt_critique: dgt_crit(4.0),
                 ..Default::default()
             },
             // Les pièces d'armure (casque, torse, pantalon, bottes) donnent de l'armure.
             // Le torse en donne le plus, les bottes le moins.
             Emplacement::Casque => Bonus {
-                vie_max: stat(8.0, 1.0),
-                armure: stat(2.0, 0.3),
+                vie_max: stat(10.0),
+                armure: stat(2.0),
                 ..Default::default()
             },
             Emplacement::Torse => Bonus {
-                vie_max: stat(15.0, 2.0),
-                armure: stat(4.0, 0.6),
+                vie_max: stat(18.0),
+                armure: stat(4.0),
                 ..Default::default()
             },
             Emplacement::Mains => Bonus {
-                degats: stat(1.0, 0.2),
+                degats: stat(2.0),
                 tx_critique: tx_crit(0.04),
                 ..Default::default()
             },
             Emplacement::Pantalon => Bonus {
-                vie_max: stat(10.0, 1.5),
-                armure: stat(3.0, 0.4),
+                vie_max: stat(12.0),
+                armure: stat(3.0),
                 ..Default::default()
             },
             Emplacement::Bottes => Bonus {
-                vie_max: stat(5.0, 0.8),
-                degats: stat(1.0, 0.2),
-                armure: stat(1.0, 0.2),
+                vie_max: stat(6.0),
+                degats: stat(1.0),
+                armure: stat(2.0),
                 ..Default::default()
             },
             Emplacement::Ceinture => Bonus {
-                vie_max: stat(6.0, 1.0),
+                vie_max: stat(8.0),
                 dgt_critique: dgt_crit(5.0),
                 ..Default::default()
             },
@@ -308,10 +324,10 @@ impl Item {
         }
     }
 
-    // Exemple : "Lame d'acier [Rare] Dégâts +7, Dgt crit +6".
+    // Exemple : "Lame d'acier | [Rare] | Dégâts +7, Dgt crit +6".
     pub fn description(&self) -> String {
         format!(
-            "{} [{}] {}",
+            "{} | [{}] | {}",
             self.nom,
             self.rarete.nom(),
             self.bonus.description()
@@ -329,6 +345,39 @@ mod tests {
         let profond = Item::creer(Emplacement::Anneau, Rarete::Rare, 90);
         assert_eq!(bas.bonus.tx_critique, profond.bonus.tx_critique);
         assert_eq!(bas.bonus.dgt_critique, profond.bonus.dgt_critique);
+    }
+
+    // Pour chaque emplacement et chaque paire de raretés qui se suivent :
+    // le pire objet de la rareté au-dessus (étage 1) vaut au moins le meilleur d'en dessous (étage 100).
+    #[test]
+    fn les_raretes_ne_se_chevauchent_pas() {
+        // Toutes les stats d'un bonus dans un tableau, pour les comparer d'un coup.
+        let stats = |b: Bonus| {
+            [
+                b.degats as f64,
+                b.vie_max as f64,
+                b.tx_critique,
+                b.dgt_critique as f64,
+                b.armure as f64,
+            ]
+        };
+
+        for emplacement in Emplacement::TOUS {
+            // `windows(2)` : parcourt les paires voisines (Commun/PeuCommun, PeuCommun/Rare...).
+            for paire in Rarete::TOUTES.windows(2) {
+                let meilleur_bas = stats(Item::creer(emplacement, paire[0], 100).bonus);
+                let pire_haut = stats(Item::creer(emplacement, paire[1], 1).bonus);
+                for (bas, haut) in meilleur_bas.iter().zip(pire_haut) {
+                    assert!(
+                        *bas <= haut,
+                        "{} : {} dépasse {}",
+                        emplacement.nom(),
+                        paire[0].nom(),
+                        paire[1].nom()
+                    );
+                }
+            }
+        }
     }
 
     #[test]

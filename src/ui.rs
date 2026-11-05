@@ -1,4 +1,4 @@
-use ratatui::{
+﻿use ratatui::{
     Frame,
     layout::{Constraint, Layout, Rect},
     style::{Color, Style, Stylize},
@@ -286,7 +286,7 @@ fn dessiner_ennemi(frame: &mut Frame, zone: Rect, ennemi: &Enemie) {
     // L'intention de l'ennemi pour ce tour : le conseil de bloquer reste visible à l'écran,
     // même quand le message du journal est remonté.
     if ennemi.prochain_critique {
-        let alerte = Line::from("⚠ Attaque puissante : bloquez !").red().bold();
+        let alerte = Line::from("⚠ Prépare une attaque puissante").red().bold();
         frame.render_widget(alerte, ligne_intention);
     }
 }

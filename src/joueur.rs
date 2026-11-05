@@ -137,6 +137,8 @@ impl Joueur {
     // `item: Item` (sans `&`) : le joueur PREND possession de l'objet.
     pub fn equiper(&mut self, item: Item, journal: &mut Vec<String>) {
         journal.push(format!("Vous équipez : {}.", item.description()));
+        // On retient les PV max AVANT le changement, pour connaître le gain ensuite.
+        let vie_max_avant = self.vie_max_total();
 
         // `&mut Option<Item>` : une référence vers le bon emplacement, qu'on va modifier.
         let place = &mut self.equipement[item.emplacement.index()];
@@ -145,7 +147,12 @@ impl Joueur {
             journal.push(format!("{} est abandonné.", ancien.nom));
         }
 
-        // Si la nouvelle armure donne moins de PV max, la vie ne doit pas dépasser le maximum.
+        // Comme l'amélioration : les PV max gagnés s'ajoutent aux PV actuels (80/100 → 110/130).
+        // Si l'objet donne MOINS de PV max, `gain` est négatif et on plafonne seulement.
+        let gain = self.vie_max_total() - vie_max_avant;
+        if gain > 0 {
+            self.vie += gain;
+        }
         self.vie = self.vie.min(self.vie_max_total());
     }
 
@@ -187,7 +194,21 @@ impl Joueur {
         // `min` plafonne la vie à `vie_max`.
         let vie_avant = self.vie;
         self.vie = (self.vie + soin).min(self.vie_max_total());
-        journal.push(format!("Vous vous soignez de {} PV.", self.vie - vie_avant));
+        let rendus = self.vie - vie_avant;
+
+        // Le journal montre les PV avant → après, pour ne pas confondre avec la riposte qui suit.
+        let mut message = format!(
+            "Soin : +{} PV ({} → {}/{}).",
+            rendus,
+            vie_avant,
+            self.vie,
+            self.vie_max_total()
+        );
+        // Si le plafond a coupé le soin, on le dit.
+        if rendus < soin {
+            message.push_str(" PV max atteints.");
+        }
+        journal.push(message);
     }
 
     pub fn attaquer(&self, cible: &mut Enemie, journal: &mut Vec<String>) {
@@ -227,6 +248,17 @@ mod tests {
         joueur.vie = 80;
         joueur.ameliorer(Amelioration::VieMax, &mut Vec::new());
         assert_eq!((joueur.vie, joueur.vie_max_total()), (100, 120));
+    }
+
+    #[test]
+    fn equiper_des_pv_max_augmente_aussi_les_pv() {
+        let mut joueur = Joueur::creer_joueur("Test".to_string());
+        joueur.vie = 80;
+        let torse = Item::creer(Emplacement::Torse, crate::item::Rarete::Commun, 1);
+        let gain = torse.bonus.vie_max;
+        joueur.equiper(torse, &mut Vec::new());
+        assert_eq!(joueur.vie, 80 + gain);
+        assert_eq!(joueur.vie_max_total(), 100 + gain);
     }
 
     #[test]

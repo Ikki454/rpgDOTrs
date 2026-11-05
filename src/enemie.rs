@@ -81,7 +81,14 @@ impl Enemie {
 
         // C'est la cible qui applique SON armure : l'attaquant ne la connaît pas.
         let subis = cible.subir_degats(degats);
-        journal.push(format!("{} vous inflige {} dégâts.", self.nom, subis));
+        // Les PV restants : avec la ligne du soin, on suit le tour en entier.
+        journal.push(format!(
+            "{} vous inflige {} dégâts ({}/{} PV).",
+            self.nom,
+            subis,
+            cible.vie,
+            cible.vie_max_total()
+        ));
     }
 
     // Renvoie les dégâts réellement subis (après armure), pour le journal.
